@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 def show_model_training_tab():
-    st.header("모델 학습")
+    
 
     # 1. 현재 Recall, F1-Score, AUC, 정밀도
     st.subheader("주요 성능 지표")
@@ -39,11 +39,11 @@ def show_model_training_tab():
     st.markdown("---")
 
     # 3. 성능 지표 추이 (그래프) 및 손실 함수 추이 (막대그래프)
-    st.subheader("학습 추이")
+    
     col_graphs1, col_graphs2 = st.columns(2)
 
     with col_graphs1:
-        st.write("##### 성능 지표 추이")
+        
         epochs = np.arange(1, current_epoch + 1 if is_training else 101)
         recall_data = np.random.uniform(0.7, 0.95, len(epochs))
         f1_data = np.random.uniform(0.65, 0.9, len(epochs))
@@ -57,7 +57,7 @@ def show_model_training_tab():
         st.plotly_chart(fig_perf, use_container_width=True)
 
     with col_graphs2:
-        st.write("##### 손실 함수 추이")
+        
         loss_data = np.random.uniform(0.1, 0.5, len(epochs))
         fig_loss = go.Figure()
         fig_loss.add_trace(go.Bar(x=epochs, y=loss_data, name='Loss', marker_color='purple'))
