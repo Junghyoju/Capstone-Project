@@ -11,6 +11,10 @@ from performance_tab import show_performance_tab
 from roi_tab import show_roi_tab
 from landing_page import landing_page
 
+from firebase_config import db # Firebase db 객체 임포트
+from firebase_admin import firestore # firestore 모듈 임포트
+
+
 # 페이지 설정
 st.set_page_config(page_title="Smart Factory Defect Detection", layout="wide")
 
@@ -44,6 +48,39 @@ else:
     st.sidebar.success("카메라 상태")
     st.sidebar.success("모델 서버")
     st.sidebar.success("DB 연결")
+
+    # =========================
+    # Firebase 테스트 섹션 추가
+    # =========================
+    st.sidebar.subheader("Firebase 테스트")
+    if st.sidebar.button("Firestore에 데이터 추가"):
+        if db:
+            try:
+                doc_ref = db.collection('test_data').document('sample_doc')
+                doc_ref.set({
+                    'message': 'Hello from Streamlit!',
+                    'timestamp': firestore.SERVER_TIMESTAMP
+                })
+                st.sidebar.success("데이터가 Firestore에 성공적으로 추가되었습니다.")
+            except Exception as e:
+                st.sidebar.error(f"데이터 추가 중 오류 발생: {e}")
+        else:
+            st.sidebar.warning("Firebase가 초기화되지 않았습니다.")
+
+    if st.sidebar.button("Firestore에서 데이터 읽기"):
+        if db:
+            try:
+                doc_ref = db.collection('test_data').document('sample_doc')
+                doc = doc_ref.get()
+                if doc.exists:
+                    st.sidebar.write("Firestore에서 읽은 데이터:")
+                    st.sidebar.json(doc.to_dict())
+                else:
+                    st.sidebar.info("Firestore에 'sample_doc' 문서가 없습니다.")
+            except Exception as e:
+                st.sidebar.error(f"데이터 읽기 중 오류 발생: {e}")
+        else:
+            st.sidebar.warning("Firebase가 초기화되지 않았습니다.")
 
     # =========================
     # 메인 화면
