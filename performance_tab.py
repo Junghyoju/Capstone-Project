@@ -4,18 +4,19 @@ import plotly.graph_objects as go
 import numpy as np
 
 def show_performance_tab():
-    
-
     # 1. Key Performance Metrics
     st.subheader("주요 성능 지표")
     col1, col2, col3, col4, col5 = st.columns(5)
     
     # Dummy data for metrics
-    accuracy = 92.5
-    precision = 88.2
-    recall = 90.1
-    f1_score = 89.1
-    specificity = 94.3
+    # (실제 값 계산 로직)
+    tn, fp, fn, tp = 850, 50, 70, 930
+    total = tn + fp + fn + tp
+    accuracy = (tp + tn) / total * 100
+    precision = tp / (tp + fp) * 100 if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) * 100 if (tp + fn) > 0 else 0
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    specificity = tn / (tn + fp) * 100 if (tn + fp) > 0 else 0
 
     with col1:
         st.metric("정확도", f"{accuracy:.1f}%")
@@ -31,68 +32,43 @@ def show_performance_tab():
     st.markdown("---")
 
     # 2. Confusion Matrix and Radar Chart
-    
     col_cm, col_radar = st.columns(2)
 
     with col_cm:
-        # Dummy data for Confusion Matrix
-        tn = 850 # 예측: 정상, 실제: 정상 (True Negative)
-        fp = 50  # 예측: 불량, 실제: 정상 (False Positive)
-        fn = 70  # 예측: 정상, 실제: 불량 (False Negative)
-        tp = 930 # 예측: 불량, 실제: 불량 (True Positive)
-
         st.write("#### 혼동 행렬 (Confusion Matrix)")
         
-        # Custom HTML for confusion matrix to control styling and remove indices
-        st.markdown(f"""
-        <style>
-            .confusion-matrix-table {{
-                width: 100%;
-                border-collapse: collapse;
-                font-size: 1.2em; /* Larger font size */
-                text-align: center;
-                margin-top: 10px;
-            }}
-            .confusion-matrix-table th, .confusion-matrix-table td {{
-                border: 1px solid #ddd;
-                padding: 15px; /* More padding for larger cells */
-            }}
-            .confusion-matrix-table th {{
-                background-color: #f2f2f2;
-            }}
-            .confusion-matrix-table .header-label {{
-                font-weight: bold;
-                background-color: #e0e0e0;
-            }}
-        </style>
-        <table class="confusion-matrix-table">
-            <tr>
-                <th></th>
-                <th colspan="2">예측</th>
-            </tr>
-            <tr>
-                <th class="header-label"></th>
-                <th>정상</th>
-                <th>불량</th>
-            </tr>
-            <tr>
-                <th rowspan="2" class="header-label">실제</th>
-                <th>정상</th>
-                <td>{tn}</td>
-                <td>{fp}</td>
-            </tr>
-            <tr>
-                <th>불량</th>
-                <td>{fn}</td>
-                <td>{tp}</td>
-            </tr>
-        </table>
-        """, unsafe_allow_html=True)
+        # Plotly Heatmap for a better UI
+        conf_matrix_data = np.array([[tn, fp], [fn, tp]])
+        labels = ['정상', '불량']
+
+        fig_cm = go.Figure(data=go.Heatmap(
+            z=conf_matrix_data,
+            x=labels,
+            y=labels,
+            hoverongaps=False,
+            colorscale='Blues',
+            reversescale=False,
+            text=conf_matrix_data,
+            texttemplate="%{text}",
+            # [수정된 부분] 히트맵 내부의 폰트 크기 키움
+            textfont={"size":20} 
+        ))
+
+        fig_cm.update_layout(
+            title_text=' ', # No title inside the plot
+            xaxis_title='예측 (Predicted)',
+            yaxis_title='실제 (Actual)',
+            yaxis=dict(autorange='reversed'), # Puts '정상' (TN) at the top-left
+            height=400
+        )
+        
+        st.plotly_chart(fig_cm, use_container_width=True)
 
 
     with col_radar:
         st.write("#### 성능 지표 레이더")
         categories = ['정확도', '정밀도', '재현율', 'F1-Score', '특이도']
+        # Use calculated values for the radar chart
         values = [accuracy, precision, recall, f1_score, specificity]
 
         fig = go.Figure()
@@ -119,9 +95,8 @@ def show_performance_tab():
 
     # 3. Performance Trend
     st.subheader("성능 변화 추이")
-    # Dummy data for performance trend
     dates = pd.date_range(start="2024-01-01", periods=30, freq="D")
-    performance_values = np.random.rand(30) * 20 + 70 # Values between 70 and 90
+    performance_values = np.random.rand(30) * 20 + 70
     performance_df = pd.DataFrame({
         "날짜": dates,
         "정확도": performance_values
