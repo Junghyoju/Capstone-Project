@@ -6,7 +6,7 @@ from firebase_admin import credentials, firestore
 
 # firebase_config.py와 중복 실행을 피하기 위해 여기서 직접 초기화
 if not firebase_admin._apps:
-    cred = credentials.Certificate("smart-factory-dashboard-firebase-adminsdk-fbsvc-34c4a6ad18.json")
+    cred = credentials.Certificate("smart-factory-dashboard-firebase-adminsdk-fbsvc-7bdd027a79.json")
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -44,7 +44,7 @@ while True:
             sensor_index = 1  # 300을 넘어가면 다시 1로 리셋
         
         # 데이터 생성 간격 (0.1초로 줄여 더 빠르게 스트리밍)
-        time.sleep(0.1)
+        time.sleep(1)
 
     except Exception as e:
         print(f"오류 발생: {e}")
