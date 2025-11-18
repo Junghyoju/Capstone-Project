@@ -1,0 +1,19 @@
+# 1. 라이브러리 폴더 (절대 올리면 안 됨!)
+node_modules/
+dist/
+build/
+
+# 2. 파이썬 관련 (가상환경, 캐시)
+venv/
+env/
+__pycache__/
+*.pyc
+
+# 3. 보안 파일 (해킹 방지 - 제일 중요!)
+firebase_key.json
+firebase_key*.json
+.env
+
+# 4. 기타 시스템 파일
+.DS_Store
+Thumbs.db
