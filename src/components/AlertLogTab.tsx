@@ -59,38 +59,56 @@ export function AlertLogTab() {
 
   // 🔥 Firebase 실시간 리스너 추가
   useEffect(() => {
+    // target_value가 1인 (불량) 데이터만 쿼리합니다.
     const q = query(
       collection(db, "factory_log"),
-      where("target_value", "==", 1), // 불량 데이터만 필터링
+      where("target_value", "==", 1),
       orderBy("timestamp", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const alertData: AlertLog[] = snapshot.docs.map(doc => {
-        const data = doc.data();
-        const dateObj = data.timestamp instanceof Timestamp ? data.timestamp.toDate() : new Date();
-        
-        // 기존 로그에서 상태(ACK/UNACK)가 있는지 확인, 없으면 UNACK
-        const existingLog = logs.find(log => log.id === doc.id);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setLogs((prevLogs) => {
+          const alertData: AlertLog[] = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            const dateObj =
+              data.timestamp instanceof Timestamp
+                ? data.timestamp.toDate()
+                : new Date();
 
-        return {
-          id: doc.id,
-          timestamp: dateObj.toLocaleString("ko-KR"),
-          timestampMs: dateObj.getTime(),
-          sensorId: data.sensor_id,
-          // target_value가 1일 때 sensor_value는 90~110 범위이므로, 이를 0~1 확률로 변환
-          probability: Math.min(1, (data.sensor_value - 70) / 40), 
-          status: existingLog ? existingLog.status : "UNACK",
-          actionTaken: existingLog ? existingLog.actionTaken : undefined,
-        };
-      });
-      setLogs(alertData);
-    }, (error) => {
-      console.error("Firebase Error in AlertLogTab:", error);
-    });
+            const existingLog = prevLogs.find((log) => log.id === doc.id);
+
+            // 🚨 수정된 로직: data.probability 필드를 Number()로 변환하여 사용
+            const safeProbability = Number(data.probability);
+
+            return {
+              id: doc.id,
+              timestamp: dateObj.toLocaleString("ko-KR"),
+              timestampMs: dateObj.getTime(),
+              sensorId: data.sensor_id,
+              // 💡 수정: FireStore의 'probability' 필드를 직접 사용하고 숫자로 강제 변환
+              probability: isNaN(safeProbability) ? 0 : safeProbability,
+              status: existingLog ? existingLog.status : "UNACK",
+              actionTaken: existingLog ? existingLog.actionTaken : undefined,
+            };
+          });
+
+          // 데이터가 실제로 변경되었을 때만 상태 업데이트하여 무한 루프 방지
+          if (JSON.stringify(prevLogs) === JSON.stringify(alertData)) {
+            return prevLogs;
+          }
+
+          return alertData;
+        });
+      },
+      (error) => {
+        console.error("Firebase Error in AlertLogTab:", error);
+      }
+    );
 
     return () => unsubscribe();
-  }, []); // logs를 dependency에서 제거하여 무한 루프 방지
+  }, []); // 의존성 배열은 빈 배열로 유지
 
   // 센서 랭킹 계산
   const calculateRankings = (logData: AlertLog[], period: "24h" | "1week") => {
@@ -117,6 +135,7 @@ export function AlertLogTab() {
       }
       const sensor = sensorMap.get(log.sensorId)!;
       sensor.count++;
+      // probability는 이미 Number 타입이므로 안전하게 push
       sensor.probabilities.push(log.probability);
       sensor.lastTime = Math.max(sensor.lastTime, log.timestampMs);
     });
@@ -127,8 +146,10 @@ export function AlertLogTab() {
         sensorId,
         detectionCount: data.count,
         avgProbability:
-          data.probabilities.reduce((a, b) => a + b, 0) /
-          data.probabilities.length,
+          data.probabilities.length > 0
+            ? data.probabilities.reduce((a, b) => a + b, 0) /
+              data.probabilities.length
+            : 0,
         lastDetection: new Date(data.lastTime).toLocaleString("ko-KR"),
       }))
       .sort((a, b) => b.detectionCount - a.detectionCount)
@@ -165,6 +186,8 @@ export function AlertLogTab() {
   }, [searchTerm, statusFilter, selectedSensor, logs]);
 
   const handleAck = (logId: string, action: string) => {
+    // 이 부분은 Firestore에 업데이트하는 로직이 추가되어야 하지만,
+    // 현재는 로컬 상태만 업데이트하도록 유지합니다.
     setLogs((prev) =>
       prev.map((log) =>
         log.id === logId ? { ...log, status: "ACK", actionTaken: action } : log
@@ -181,7 +204,7 @@ export function AlertLogTab() {
       {/* 통계 요약 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <div className="text-sm text-blue-900 mb-1">전체 이벤트</div>
+          <div className="text-sm text-blue-900 mb-1">전체 불량 이벤트</div>
           <div className="text-2xl text-blue-900">{logs.length}</div>
         </Card>
         <Card className="p-4 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
@@ -197,7 +220,7 @@ export function AlertLogTab() {
           </div>
         </Card>
         <Card className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <div className="text-sm text-purple-900 mb-1">평균 이상 확률</div>
+          <div className="text-sm text-purple-900 mb-1">종합 위험 지수</div>
           <div className="text-2xl text-purple-900">
             {logs.length > 0
               ? (
@@ -240,7 +263,7 @@ export function AlertLogTab() {
                   <th className="p-3 text-left text-sm w-20">순위</th>
                   <th className="p-3 text-left text-sm w-32">센서 ID</th>
                   <th className="p-3 text-left text-sm w-28">감지 건수</th>
-                  <th className="p-3 text-left text-sm">평균 이상 확률</th>
+                  <th className="p-3 text-left text-sm">종합 위험 지수</th>
                   <th className="p-3 text-left text-sm">최근 발생 시각</th>
                   <th className="p-3 text-left text-sm w-24">액션</th>
                 </tr>
@@ -325,7 +348,7 @@ export function AlertLogTab() {
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="센서 ID 검색..."
+              placeholder="예: Line_A"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -449,7 +472,7 @@ export function AlertLogTab() {
             <AlertCircle className="w-12 h-12 mx-auto mb-3 text-gray-400" />
             <p className="text-sm">
               {logs.length === 0
-                ? "Firebase에서 데이터를 불러오는 중..."
+                ? "데이터를 불러오는 중..."
                 : "검색 결과가 없습니다."}
             </p>
           </div>

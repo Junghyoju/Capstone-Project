@@ -11,6 +11,16 @@ import {
 } from "./ui/select";
 import { AlertCircle, CheckCircle, Clock, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 // 파이어베이스 관련 import
 import { db } from "../firebase";
@@ -47,12 +57,17 @@ export function RealtimeMonitoringTab() {
   const [isLive, setIsLive] = useState(false);
   const streamContainerRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 파이어베이스 실시간 연동
+  // StreamingTab에서 가져온 State
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [normalCount, setNormalCount] = useState(0);
+  const [defectCount, setDefectCount] = useState(0);
+
+  // 🔥 파이어베이스 실시간 연동 (무한루프 방지)
   useEffect(() => {
     const q = query(
       collection(db, "factory_log"),
       orderBy("timestamp", "desc"),
-      limit(50) // 최신 50개만 가져옴
+      limit(1000) // 최신 1000개만 가져옴
     );
 
     const unsubscribe = onSnapshot(
@@ -73,17 +88,46 @@ export function RealtimeMonitoringTab() {
             rawTimestamp: dateObj,
             sensorId: data.sensor_id || "-",
             prediction: isDefect ? "defect" : "normal",
-            // 확률 대신 센서값을 정규화해서 보여주거나, 그냥 센서값 사용 (여기선 임시로 90%~99% 랜덤처럼 보이게 처리하거나 센서값 사용)
             probability: isDefect ? 0.95 : 0.1,
             modelVersion: "1.0.2",
             status: "UNACK", // 기본값은 미확인
           };
         });
 
-        setEvents(dataList);
+        setEvents(prevEvents => {
+          // 데이터가 실제로 변경되었을 때만 모든 상태 업데이트를 진행
+          if (JSON.stringify(prevEvents) === JSON.stringify(dataList)) {
+            return prevEvents;
+          }
 
-        // 통계 계산
-        calculateStats(dataList);
+          // 기존 통계 계산
+          calculateStats(dataList);
+
+          // StreamingTab 로직 추가
+          let n_count = 0;
+          let d_count = 0;
+
+          const sortedForChart = [...dataList].sort(
+            (a, b) => a.rawTimestamp.getTime() - b.rawTimestamp.getTime()
+          );
+
+          const newChartData = sortedForChart.map((item) => {
+            if (item.prediction === "normal") n_count++;
+            else d_count++;
+
+            return {
+              time: item.timestamp,
+              정상: n_count,
+              불량: d_count,
+            };
+          });
+
+          setNormalCount(n_count);
+          setDefectCount(d_count);
+          setChartData(newChartData);
+          
+          return dataList;
+        });
       },
       (error) => {
         console.error("Firebase Error:", error);
@@ -98,11 +142,7 @@ export function RealtimeMonitoringTab() {
   const calculateStats = (data: SensorEvent[]) => {
     if (data.length === 0) return;
 
-    // 1. 전체 불량 건수 (현재 로드된 데이터 기준)
-    // (실제로는 서버에서 집계된 값을 가져오거나 더 많은 데이터를 로드해야 정확함)
     const total = data.filter((d) => d.prediction === "defect").length;
-
-    // 2. 최근 5분 불량 건수
     const now = new Date();
     const fiveMinsAgo = new Date(now.getTime() - 5 * 60 * 1000);
     const recent = data.filter(
@@ -114,7 +154,7 @@ export function RealtimeMonitoringTab() {
     setLastUpdate(new Date().toLocaleTimeString("ko-KR"));
   };
 
-  // 이벤트 ACK 처리 (기존 로직 유지)
+  // 이벤트 ACK 처리
   const handleAckEvent = (eventId: string) => {
     setEvents((prev) =>
       prev.map((event) =>
@@ -127,13 +167,23 @@ export function RealtimeMonitoringTab() {
     });
   };
 
-  // KPI 표시값 계산 (기존 로직 유지)
   const displayDefectCount =
     kpiPeriod === "session"
       ? totalDefectCount
       : kpiPeriod === "daily"
       ? Math.floor(totalDefectCount * 1.5)
       : Math.floor(totalDefectCount * 3.2);
+
+  // StreamingTab에서 가져온 통계 계산
+  const totalStreamingCount = normalCount + defectCount;
+  const normalPercentage =
+    totalStreamingCount > 0
+      ? ((normalCount / totalStreamingCount) * 100).toFixed(1)
+      : 0;
+  const defectPercentage =
+    totalStreamingCount > 0
+      ? ((defectCount / totalStreamingCount) * 100).toFixed(1)
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -240,7 +290,6 @@ export function RealtimeMonitoringTab() {
                         • {event.timestamp}
                       </span>
 
-                      {/* 확률 표시 (선택 사항) */}
                       <span className="text-xs text-gray-500">
                         AI 확신도: {(event.probability * 100).toFixed(0)}%
                       </span>
@@ -248,7 +297,7 @@ export function RealtimeMonitoringTab() {
                         v{event.modelVersion}
                       </span>
 
-                      {event.prediction === 'defect' && (
+                      {event.prediction === "defect" && (
                         <Badge
                           variant={
                             event.status === "ACK" ? "outline" : "secondary"
@@ -287,6 +336,63 @@ export function RealtimeMonitoringTab() {
             </div>
           )}
         </div>
+      </Card>
+
+      {/* Status Cards from StreamingTab */}
+      <div className="grid grid-cols-2 gap-6">
+        <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg text-green-900">정상</h3>
+            <CheckCircle className="w-8 h-8 text-green-600" />
+          </div>
+          <div className="text-4xl mb-2 text-green-900">
+            {normalPercentage}%
+          </div>
+          <div className="text-sm text-green-700">
+            {normalCount.toLocaleString()} 건 (최근 50개 중)
+          </div>
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg text-red-900">불량</h3>
+            <XCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <div className="text-4xl mb-2 text-red-900">{defectPercentage}%</div>
+          <div className="text-sm text-red-700">
+            {defectCount.toLocaleString()} 건 (최근 50개 중)
+          </div>
+        </Card>
+      </div>
+
+      {/* Real-time Quality Trend Chart from StreamingTab */}
+      <Card className="p-6">
+        <h3 className="mb-4">실시간 품질 추이</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="정상"
+              stroke="#22c55e"
+              strokeWidth={2}
+              dot={{ r: 4 }}
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="불량"
+              stroke="#ef4444"
+              strokeWidth={2}
+              dot={{ r: 4 }}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </Card>
     </div>
   );

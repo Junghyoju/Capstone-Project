@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
@@ -6,60 +5,10 @@ import {
   BarChart, Bar, LineChart, Line, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
 } from 'recharts';
-import { TrendingUp, DollarSign, Target, Zap, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
-
-// 파이어베이스 관련 import
-import { db } from "../firebase";
-import {
-  collection,
-  query,
-  orderBy,
-  limit,
-  onSnapshot,
-} from "firebase/firestore";
-
-interface LiveDefectData {
-  name: '정상' | '불량';
-  count: number;
-}
+import { TrendingUp, DollarSign, Target, Zap, Clock } from 'lucide-react';
 
 export function ChartTab() {
-  const [liveDefectData, setLiveDefectData] = useState<LiveDefectData[]>([]);
-
-  // 🔥 파이어베이스 실시간 연동
-  useEffect(() => {
-    const q = query(
-      collection(db, "factory_log"),
-      orderBy("timestamp", "desc"),
-      limit(100) // 최신 100개 데이터 기반으로 집계
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let normalCount = 0;
-      let defectCount = 0;
-
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.target_value === 1) {
-          defectCount++;
-        } else {
-          normalCount++;
-        }
-      });
-
-      setLiveDefectData([
-        { name: '정상', count: normalCount },
-        { name: '불량', count: defectCount },
-      ]);
-    }, (error) => {
-      console.error("Firebase Error in ChartTab:", error);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-
-  // ROI Data (기존 정적 데이터 유지)
+  // ROI Data
   const roiData = [
     { month: '1월', roi: 45 },
     { month: '2월', roi: 78 },
@@ -82,16 +31,12 @@ export function ChartTab() {
   const radarData = [
     { metric: '정확도', value: 94.7 },
     { metric: '정밀도', value: 92.2 },
-    { metric: '재현율', value: 95.0 },
-    { metric: 'F1-Score', value: 93.6 },
+    { metric: '탐지율', value: 95.0 },
+    { metric: '균형점', value: 93.6 },
     { metric: '특이도', value: 98.1 },
   ];
 
-  // Training Progress
-  const currentEpoch = 48;
-  const totalEpochs = 50;
-  const trainingTime = '2시간 35분';
-  const trainingStatus = currentEpoch >= totalEpochs ? '학습 완료' : '학습 중';
+
 
   const accuracy = 94.7;
   const precision = 92.2;
@@ -100,28 +45,6 @@ export function ChartTab() {
 
   return (
     <div className="space-y-6">
-      {/* 실시간 불량 현황 차트 */}
-      <Card className="p-6">
-        <h3 className="mb-4 flex items-center">
-          <Zap className="w-5 h-5 mr-2 text-blue-500" />
-          실시간 생산 현황 (최신 100개)
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={liveDefectData} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" />
-            <YAxis type="category" dataKey="name" width={60} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="count" name="수량">
-              {liveDefectData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.name === '불량' ? '#ef4444' : '#22c55e'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
-
       {/* ROI Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
@@ -186,7 +109,7 @@ export function ChartTab() {
       {/* Confusion Matrix and Performance Metrics */}
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h3 className="mb-4">혼동 행렬 (Confusion Matrix)</h3>
+          <h3 className="mb-4">결과 요약표</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="p-6 bg-green-100 rounded-lg text-center border-2 border-green-300">
               <div className="text-xs text-green-700 mb-2">True Positive</div>
@@ -230,14 +153,14 @@ export function ChartTab() {
             </div>
             <div>
               <div className="flex justify-between mb-2">
-                <span className="text-sm">재현율 (Recall)</span>
+                <span className="text-sm">탐지율 (Recall)</span>
                 <Badge className="bg-purple-600">{recall}%</Badge>
               </div>
               <Progress value={recall} className="h-2" />
             </div>
             <div>
               <div className="flex justify-between mb-2">
-                <span className="text-sm">F1-Score</span>
+                <span className="text-sm">균형점 (F1-score)</span>
                 <Badge className="bg-orange-600">{f1Score}%</Badge>
               </div>
               <Progress value={f1Score} className="h-2" />
@@ -268,56 +191,7 @@ export function ChartTab() {
         </ResponsiveContainer>
       </Card>
 
-      {/* Model Training Progress */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3>모델 학습 진행 상황</h3>
-          <Badge className={trainingStatus === '학습 완료' ? 'bg-green-600' : 'bg-blue-600'}>
-            {trainingStatus}
-          </Badge>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-4 h-4 text-gray-600" />
-                <span className="text-sm text-gray-600">학습 시간</span>
-              </div>
-              <div className="text-2xl">{trainingTime}</div>
-            </div>
-            
-            <div className="p-4 bg-slate-50 rounded-lg">
-              <div className="text-sm text-gray-600 mb-2">현재 Epoch</div>
-              <div className="text-2xl">{currentEpoch} / {totalEpochs}</div>
-            </div>
-            
-            <div className="p-4 bg-slate-50 rounded-lg">
-              <div className="text-sm text-gray-600 mb-2">진행률</div>
-              <div className="text-2xl">{((currentEpoch / totalEpochs) * 100).toFixed(1)}%</div>
-            </div>
-          </div>
 
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-sm text-gray-600">학습 진행</span>
-              <span className="text-sm">{currentEpoch} / {totalEpochs} epochs</span>
-            </div>
-            <Progress value={(currentEpoch / totalEpochs) * 100} className="h-3" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-            <div>
-              <div className="text-sm text-gray-600 mb-1">학습 손실 (Loss)</div>
-              <div className="text-xl">0.0342</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-600 mb-1">검증 손실 (Val Loss)</div>
-              <div className="text-xl">0.0389</div>
-            </div>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }

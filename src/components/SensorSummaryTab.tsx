@@ -86,12 +86,17 @@ export function SensorSummaryTab() {
       });
 
       // 센서별 데이터 가공
-      const newSensorProbData: SensorProbData[] = Array.from(sensorMap.entries()).map(([sensorId, data]) => ({
-        sensorId,
-        // 불량일 때 sensor_value는 90~110 범위. 이를 70~100% 확률로 표현
-        평균확률: (data.values.reduce((a, b) => a + b, 0) / data.values.length - 20),
-        발생빈도: data.count,
-      }));
+      const newSensorProbData: SensorProbData[] = Array.from(sensorMap.entries()).map(([sensorId, data]) => {
+        const sum = data.values.reduce((a, b) => a + b, 0);
+        const avg = data.values.length > 0 ? sum / data.values.length : 0;
+        
+        return {
+          sensorId,
+          // 불량일 때 sensor_value는 90~110 범위. 이를 70~100% 확률로 표현
+          평균확률: avg > 0 ? avg - 20 : 0,
+          발생빈도: data.count,
+        };
+      });
       setSensorProbabilityData(newSensorProbData);
 
       // 시간대별 데이터 가공
@@ -258,7 +263,7 @@ export function SensorSummaryTab() {
       {/* 센서별 평균 이상 확률 및 발생 빈도 */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3>센서별 평균 이상 확률 및 발생 빈도 (실시간)</h3>
+          <h3>센서별 평균 이상 확률 및 발생 빈도</h3>
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input

@@ -58,11 +58,10 @@ export function DashboardSidebar({ onDataUpload }: DashboardSidebarProps) {
     <div className="w-80 bg-slate-900 text-white p-6 flex flex-col gap-6 overflow-y-auto h-screen">
       {/* File Upload Section */}
       <Card className="p-4 bg-slate-800 border-slate-700 flex-shrink-0">
-        <h3 className="mb-4 flex items-center gap-2">
-          <Upload className="w-5 h-5" />
-          데이터 업로드
-        </h3>
-        <input
+                                                <h3 className="mb-4 flex items-center gap-2 text-white text-base">
+                                                  <Upload className="w-5 h-5" />
+                                                  데이터 업로드
+                                                </h3>        <input
           ref={fileInputRef}
           type="file"
           accept=".csv,.json"
@@ -94,8 +93,8 @@ export function DashboardSidebar({ onDataUpload }: DashboardSidebarProps) {
         <Card className="bg-slate-800 border-slate-700 flex-shrink-0">
           <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-slate-700/50 transition-colors">
             <div className="flex items-center gap-2">
-              <Database className="w-5 h-5" />
-              <h3>현재 데이터 처리 현황</h3>
+              <Database className="w-5 h-5 text-white" />
+              <h3 className="text-white text-base">현재 데이터 처리 현황</h3>
             </div>
             {isOpen ? (
               <ChevronUp className="w-5 h-5" />
@@ -140,7 +139,7 @@ export function DashboardSidebar({ onDataUpload }: DashboardSidebarProps) {
 
       {/* Quick Stats */}
       <Card className="p-4 bg-slate-800 border-slate-700 flex-shrink-0">
-        <h3 className="mb-4">실시간 통계</h3>
+        <h3 className="mb-4 text-white text-base">실시간 통계</h3>
         <div className="space-y-3">
           <div>
             <div className="text-sm text-gray-400 mb-1">금일 검사 건수</div>
